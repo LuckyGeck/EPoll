@@ -1,0 +1,3 @@
+[submodule "docker-fastcgi-daemon"]
+	path = docker-fastcgi-daemon
+	url = git://github.com/LuckyGeck/docker-fastcgi-daemon.git
