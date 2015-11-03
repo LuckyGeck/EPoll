@@ -26,3 +26,6 @@
 *.exe
 *.out
 *.app
+
+# Nginx logs dir
+bin/logs
