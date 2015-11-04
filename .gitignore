@@ -29,3 +29,7 @@
 
 # Nginx logs dir
 bin/logs
+
+# Ignore CLion stuff
+.idea/
+CMakeLists.txt
