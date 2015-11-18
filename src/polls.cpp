@@ -1,6 +1,8 @@
 #include "polls.h"
 
 #include <fastcgi2/stream.h>
+#include <rapidjson/document.h>
+#include <rapidjson/prettywriter.h>
 
 #include <iostream>
 
@@ -69,8 +71,24 @@ void TPolls::ScheduleRequest(fastcgi::Request *request, fastcgi::HandlerContext 
 }
 
 void TPolls::ListPolls(fastcgi::Request *request, fastcgi::HandlerContext *context) {
-    fastcgi::RequestStream stream(request);
-    stream << "[\"All polls\"]";
+    rapidjson::StringBuffer sb;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String("polls");
+    writer.StartArray();
+    for (size_t i = 0; i < 10; ++i) {
+        writer.StartObject();
+        writer.String("id");
+        writer.Int64(i);
+        writer.String("description");
+        writer.String("Poll description");
+        writer.String("created-at");
+        writer.String("YYYY-MM-DD HH:MM:SS");
+        writer.EndObject();
+    }
+    writer.EndArray();
+    writer.EndObject();
+    request->write(sb.GetString(), sb.GetSize());
 }
 
 void TPolls::PollCreate(fastcgi::Request *request, fastcgi::HandlerContext *context) {
