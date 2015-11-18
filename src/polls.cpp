@@ -4,6 +4,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
 
+#include <string>
 #include <iostream>
 
 namespace {
@@ -76,10 +77,10 @@ void TPolls::ListPolls(fastcgi::Request *request, fastcgi::HandlerContext *conte
     writer.StartObject();
     writer.String("polls");
     writer.StartArray();
-    for (size_t i = 0; i < 10; ++i) {
+    for (size_t i = 0; i < 5; ++i) {
         writer.StartObject();
         writer.String("id");
-        writer.Int64(i);
+        writer.String(std::to_string(i).c_str());
         writer.String("description");
         writer.String("Poll description");
         writer.String("created-at");
@@ -99,8 +100,28 @@ void TPolls::PollCreate(fastcgi::Request *request, fastcgi::HandlerContext *cont
 void TPolls::PollInfo(fastcgi::Request *request, fastcgi::HandlerContext *context,
                       const std::string& pollId)
 {
-    fastcgi::RequestStream stream(request);
-    stream << "[\"Poll info for " << pollId << "\"]";
+    rapidjson::StringBuffer sb;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
+    writer.StartObject();
+    writer.String("description");
+    writer.String("What is the answer to life the universe and everything?");
+    writer.String("created-at");
+    writer.String("YYYY-MM-DD HH:MM:SS");
+    writer.String("id");
+    writer.String(pollId.c_str(), pollId.size());
+    writer.String("options");
+    writer.StartArray();
+    for (size_t i = 0; i < 5; ++i) {
+        writer.StartObject();
+        writer.String("text");
+        writer.String(std::to_string(i + 1).c_str());
+        writer.String("votes");
+        writer.Int64(1 + 5 * i);
+        writer.EndObject();
+    }
+    writer.EndArray();
+    writer.EndObject();
+    request->write(sb.GetString(), sb.GetSize());
 }
 
 void TPolls::PollVote(fastcgi::Request *request, fastcgi::HandlerContext *context,
