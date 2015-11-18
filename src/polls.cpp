@@ -93,8 +93,8 @@ void TPolls::ListPolls(fastcgi::Request *request, fastcgi::HandlerContext *conte
 }
 
 void TPolls::PollCreate(fastcgi::Request *request, fastcgi::HandlerContext *context) {
-    fastcgi::RequestStream stream(request);
-    stream << "[\"Poll create\"]";
+    request->setStatus(201);
+    request->setHeader("Location", "/polls/GUID");
 }
 
 void TPolls::PollInfo(fastcgi::Request *request, fastcgi::HandlerContext *context,
@@ -127,8 +127,17 @@ void TPolls::PollInfo(fastcgi::Request *request, fastcgi::HandlerContext *contex
 void TPolls::PollVote(fastcgi::Request *request, fastcgi::HandlerContext *context,
                       const std::string& pollId, const std::string& voteId)
 {
+    long voteNum = -1;
+    try {
+        voteNum = std::stoi(voteId);
+    } catch (...) { }
+
+    if (voteNum < 0 || std::to_string(voteNum) != voteId) {
+        request->setStatus(404);
+        return;
+    }
     fastcgi::RequestStream stream(request);
-    stream << "[\"Poll vote " << pollId << " for " << voteId << "\"]";
+    stream << "[\"Poll vote " << pollId << " for " << voteId << " interpreted as " << voteNum  << "\"]";
 }
 
 } // namespace NEPoll
