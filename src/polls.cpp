@@ -1,4 +1,5 @@
 #include "polls.h"
+#include "time_util.h"
 
 #include <storage/inmem.h>
 
@@ -6,8 +7,11 @@
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
 
-#include <string>
+#include <cstdio>
+#include <ctime>
 #include <iostream>
+#include <string>
+
 
 namespace {
 
@@ -46,6 +50,49 @@ bool IsPollVote(const std::string& path, const std::string& method,
     return false;
 }
 
+enum class EPollInfoPrintMode { SHORT, FULL };
+
+void PrintPollInfo(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer,
+                   const NEPoll::TPollInfo& pollInfo, EPollInfoPrintMode mode)
+{
+    writer.StartObject();
+    writer.String("id");
+    writer.String(pollInfo.PollId.c_str());
+    writer.String("description");
+    writer.String(pollInfo.Description.c_str());
+    writer.String("created-at");
+    writer.String(NTime::TimeToString(pollInfo.Date).c_str());
+    if (mode == EPollInfoPrintMode::FULL) {
+        writer.String("options");
+        writer.StartArray();
+        for (const auto& option : pollInfo.Options) {
+            writer.StartObject();
+            writer.String("text");
+            writer.String(option.Text.c_str());
+            writer.String("votes");
+            writer.Int64(option.Votes.load(std::memory_order_relaxed));
+            writer.EndObject();
+        }
+        writer.EndArray();
+    }
+    writer.EndObject();
+}
+
+inline uint32_t Rand4() {
+    return rand() & 0xffff;
+}
+
+std::string GenerateGUID() {
+    char result[64];
+    snprintf(result, 64, "%x%x-%x-%x-%x-%x%x%x",
+        Rand4(), Rand4(),             // Generates a 64-bit Hex number
+        Rand4(),                       // Generates a 32-bit Hex number
+        ((Rand4() & 0x0fff) | 0x4000), // Generates a 32-bit Hex number of the form 4xxx (4 indicates the UUID version)
+        Rand4() % 0x3fff + 0x8000,     // Generates a 32-bit Hex number in the range [0x8000, 0xbfff]
+        Rand4(), Rand4(), Rand4());  // Generates a 96-bit Hex number
+    return result;
+}
+
 } // anonymous namespace
 
 namespace NEPoll {
@@ -82,15 +129,8 @@ void TPolls::ListPolls(fastcgi::Request *request, fastcgi::HandlerContext *conte
     writer.StartObject();
     writer.String("polls");
     writer.StartArray();
-    for (size_t i = 0; i < 5; ++i) {
-        writer.StartObject();
-        writer.String("id");
-        writer.String(std::to_string(i).c_str());
-        writer.String("description");
-        writer.String("Poll description");
-        writer.String("created-at");
-        writer.String("YYYY-MM-DD HH:MM:SS");
-        writer.EndObject();
+    for (const auto& pollInfo : Storage->ListPolls()) {
+        PrintPollInfo(writer, pollInfo, EPollInfoPrintMode::SHORT);
     }
     writer.EndArray();
     writer.EndObject();
@@ -98,34 +138,48 @@ void TPolls::ListPolls(fastcgi::Request *request, fastcgi::HandlerContext *conte
 }
 
 void TPolls::PollCreate(fastcgi::Request *request, fastcgi::HandlerContext *context) {
+    std::string inputJson;
+    request->requestBody().toString(inputJson);
+    rapidjson::Document document;
+    document.Parse(inputJson.c_str());
+    if (!(document.HasMember("description") && document["description"].IsString() &&
+          document.HasMember("options") && document["options"].IsArray() &&
+          document["options"].Size() > 0))
+    {
+        request->setStatus(400);
+        return;
+    }
+    TPollInfo pollInfo;
+    pollInfo.PollId = GenerateGUID();
+    pollInfo.Description = document["description"].GetString();
+    pollInfo.Date = NTime::GetCurrectTime();
+    const auto& opts = document["options"];
+    for (size_t optionIdx = 0; optionIdx < opts.Size(); ++optionIdx) {
+        const auto& curOption = opts[optionIdx];
+        if (!curOption.IsString()) {
+            request->setStatus(400);
+            return;
+        }
+        pollInfo.Options.emplace_back(curOption.GetString());
+    }
+    Storage->CreatePoll(pollInfo);
     request->setStatus(201);
-    request->setHeader("Location", "/polls/GUID");
+    request->setHeader("Location", "/polls/" + pollInfo.PollId);
 }
 
 void TPolls::PollInfo(fastcgi::Request *request, fastcgi::HandlerContext *context,
                       const std::string& pollId)
 {
+    TPollInfo pollInfo;
+    try {
+        pollInfo = std::move(Storage->FindPoll(pollId));
+    } catch (const TNotFoundPollException& ex) {
+        request->setStatus(404);
+        return;
+    }
     rapidjson::StringBuffer sb;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
-    writer.StartObject();
-    writer.String("description");
-    writer.String("What is the answer to life the universe and everything?");
-    writer.String("created-at");
-    writer.String("YYYY-MM-DD HH:MM:SS");
-    writer.String("id");
-    writer.String(pollId.c_str(), pollId.size());
-    writer.String("options");
-    writer.StartArray();
-    for (size_t i = 0; i < 5; ++i) {
-        writer.StartObject();
-        writer.String("text");
-        writer.String(std::to_string(i + 1).c_str());
-        writer.String("votes");
-        writer.Int64(1 + 5 * i);
-        writer.EndObject();
-    }
-    writer.EndArray();
-    writer.EndObject();
+    PrintPollInfo(writer, pollInfo, EPollInfoPrintMode::FULL);
     request->write(sb.GetString(), sb.GetSize());
 }
 
@@ -141,8 +195,13 @@ void TPolls::PollVote(fastcgi::Request *request, fastcgi::HandlerContext *contex
         request->setStatus(404);
         return;
     }
-    fastcgi::RequestStream stream(request);
-    stream << "[\"Poll vote " << pollId << " for " << voteId << " interpreted as " << voteNum  << "\"]";
+    try {
+        Storage->VotePoll(pollId, voteNum);
+    } catch (const TNotFoundPollException& ex) {
+        request->setStatus(404);
+    } catch (const TNotFoundOptionInPollException& ex) {
+        request->setStatus(404);
+    }
 }
 
 } // namespace NEPoll

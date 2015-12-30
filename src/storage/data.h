@@ -11,6 +11,11 @@ namespace NEPoll {
 using TPollId = std::string;
 
 struct TPollOption {
+    TPollOption(std::string&& text)
+        : Text(std::move(text))
+        , Votes(0)
+    {}
+
     TPollOption(const TPollOption& rhs) {
         Text = rhs.Text;
         Votes.store(rhs.Votes.load());
