@@ -3,7 +3,7 @@ fastcgi-daemon:
     file: docker-fastcgi-daemon/docker-compose.yml
     service: fastcgi-daemon
   volumes:
-    - ./bin:data
+    - ./bin:/data
 
 nginx:
   extends:
