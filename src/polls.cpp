@@ -1,5 +1,7 @@
 #include "polls.h"
 
+#include <storage/inmem.h>
+
 #include <fastcgi2/stream.h>
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
@@ -48,9 +50,12 @@ bool IsPollVote(const std::string& path, const std::string& method,
 
 namespace NEPoll {
 
-TPolls::TPolls() {
-
+TPolls::TPolls()
+    : Storage(new TInMemoryStorage())
+{
 }
+
+TPolls::~TPolls() = default;
 
 void TPolls::ScheduleRequest(fastcgi::Request *request, fastcgi::HandlerContext *context) {
     auto& path = request->getScriptName();
