@@ -100,6 +100,7 @@ namespace NEPoll {
 TPolls::TPolls()
     : Storage(new TInMemoryStorage())
 {
+    srand(42); // FIXED SEED TO REPRODUCE GUID-s IN TESTS
 }
 
 TPolls::~TPolls() = default;
