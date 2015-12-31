@@ -33,3 +33,6 @@ bin/logs
 # Ignore CLion stuff
 .idea/
 CMakeLists.txt
+
+# Ignore yandex-tank artifacts dir
+testing/artifacts
