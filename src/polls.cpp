@@ -1,7 +1,9 @@
 #include "polls.h"
 #include "time_util.h"
 
-#include <storage/inmem.h>
+/* To enable inmem storage - uncomment this */
+// #include <storage/inmem.h>
+#include <storage/mongo.h>
 
 #include <fastcgi2/stream.h>
 #include <rapidjson/document.h>
@@ -98,9 +100,11 @@ std::string GenerateGUID() {
 namespace NEPoll {
 
 TPolls::TPolls()
-    : Storage(new TInMemoryStorage())
+/* To enable inmem storage - uncomment this */
+    // : Storage(new TInMemoryStorage())
+    : Storage(new TMongoStorage("mongo"))
 {
-    srand(42); // FIXED SEED TO REPRODUCE GUID-s IN TESTS
+    srand(time(NULL));
 }
 
 TPolls::~TPolls() = default;

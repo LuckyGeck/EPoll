@@ -11,9 +11,9 @@ namespace NEPoll {
 using TPollId = std::string;
 
 struct TPollOption {
-    TPollOption(std::string&& text)
+    TPollOption(std::string&& text, size_t votes = 0)
         : Text(std::move(text))
-        , Votes(0)
+        , Votes(votes)
     {}
 
     TPollOption(const TPollOption& rhs) {

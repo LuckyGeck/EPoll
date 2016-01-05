@@ -2,6 +2,8 @@ fastcgi-daemon:
   extends:
     file: docker-fastcgi-daemon/docker-compose.yml
     service: fastcgi-daemon
+  links:
+    - mongo
   volumes:
     - ./bin:/data
 
@@ -12,6 +14,14 @@ nginx:
   volumes:
     - ./bin/nginx.conf:/etc/nginx/conf.d/default.conf
     - ./bin/logs:/var/log/nginx
+
+mongo:
+  image: mongo
+  volumes:
+    - /data/db:/data/db
+  container_name: epoll-mongo
+  ports:
+    - 27017:27017
 
 builder:
   extends:
